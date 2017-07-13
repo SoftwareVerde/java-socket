@@ -1,5 +1,5 @@
 group 'com.softwareverde'
-version '0.1.0'
+version '0.1.1'
 
 apply plugin: 'java'
 
@@ -11,6 +11,14 @@ task makeJar(type: Jar) {
                     'Implementation-Version': version
     }
     from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
+    with jar
+}
+
+task makeLib(type: Jar) {
+    manifest {
+        attributes  'Implementation-Title': 'Java Socket Client/Server',
+                    'Implementation-Version': version
+    }
     with jar
 }
 
