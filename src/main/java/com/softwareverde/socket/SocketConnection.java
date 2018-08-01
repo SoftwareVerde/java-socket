@@ -1,12 +1,9 @@
 package com.softwareverde.socket;
 
-import com.softwareverde.async.HaltableThread;
-
 import java.io.*;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.*;
 
 public class SocketConnection {
     private static final Object _nextIdMutex = new Object();
@@ -66,7 +63,7 @@ public class SocketConnection {
         _readThread = new Thread(new Runnable() {
             @Override
             public void run() {
-                while (! _isClosed) {
+                while ( (! _isClosed) && (! Thread.interrupted()) ) {
                     try {
                         final String message = _in.readLine();
                         if (message == null) {
@@ -100,6 +97,54 @@ public class SocketConnection {
         _out.flush();
     }
 
+    public String waitForMessage() {
+        while (! Thread.interrupted()) {
+            final String message;
+            synchronized (_messages) {
+                message = ( (! _messages.isEmpty()) ? _messages.remove(0) : null );
+            }
+
+            if (message != null) {
+                return message;
+            }
+
+            try { Thread.sleep(100L); } catch (final InterruptedException exception) { break; }
+        }
+
+        return null;
+    }
+
+    public String waitForMessage(final Long timeout) {
+        final Long start = System.currentTimeMillis();
+
+        boolean shouldContinue = true;
+        while (shouldContinue) {
+            final String message;
+            synchronized (_messages) {
+                message = ( (! _messages.isEmpty()) ? _messages.remove(0) : null );
+            }
+
+            if (message != null) {
+                return message;
+            }
+
+            try { Thread.sleep( (timeout > 0) ? (timeout / 10L) : (100L) ); } catch (final InterruptedException exception) { break; }
+
+            if (Thread.interrupted()) {
+                shouldContinue = false;
+            }
+            else {
+                final Long now = System.currentTimeMillis();
+                final Long elapsed = (now - start);
+                if ( (timeout >= 0L) && (elapsed > timeout) ) {
+                    shouldContinue = false;
+                }
+            }
+        }
+
+        return null;
+    }
+
     /**
      * Retrieves the oldest message from the inbound queue and returns it.
      *  Returns null if there are no pending messages.
@@ -121,11 +166,14 @@ public class SocketConnection {
 
         try {
             _rawInputStream.close();
-        } catch (final Exception exception) { }
+        }
+        catch (final Exception exception) { }
 
         try {
+            _readThread.interrupt();
             _readThread.join();
-        } catch (final InterruptedException e) { }
+        }
+        catch (final InterruptedException e) { }
 
         try {
             _socket.close();
