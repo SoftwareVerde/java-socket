@@ -21,9 +21,15 @@ public class SocketConnection {
 
     private InputStream _rawInputStream;
 
+    private final Object _messageReceivedLock = new Object();
+
     private void _executeMessageReceivedCallback() {
         if (_messageReceivedCallback != null) {
             (new Thread(_messageReceivedCallback)).start();
+        }
+
+        synchronized (_messageReceivedLock) {
+            _messageReceivedLock.notifyAll();
         }
     }
 
@@ -98,51 +104,19 @@ public class SocketConnection {
     }
 
     public String waitForMessage() {
-        while (! Thread.interrupted()) {
-            final String message;
-            synchronized (_messages) {
-                message = ( (! _messages.isEmpty()) ? _messages.remove(0) : null );
-            }
-
-            if (message != null) {
-                return message;
-            }
-
-            try { Thread.sleep(100L); } catch (final InterruptedException exception) { break; }
+        synchronized (_messageReceivedLock) {
+            try { _messageReceivedLock.wait(); } catch (final InterruptedException exception) { }
         }
 
-        return null;
+        return ( (! _messages.isEmpty()) ? _messages.remove(0) : null );
     }
 
     public String waitForMessage(final Long timeout) {
-        final Long start = System.currentTimeMillis();
-
-        boolean shouldContinue = true;
-        while (shouldContinue) {
-            final String message;
-            synchronized (_messages) {
-                message = ( (! _messages.isEmpty()) ? _messages.remove(0) : null );
-            }
-
-            if (message != null) {
-                return message;
-            }
-
-            try { Thread.sleep( (timeout > 0) ? (timeout / 10L) : (100L) ); } catch (final InterruptedException exception) { break; }
-
-            if (Thread.interrupted()) {
-                shouldContinue = false;
-            }
-            else {
-                final Long now = System.currentTimeMillis();
-                final Long elapsed = (now - start);
-                if ( (timeout >= 0L) && (elapsed > timeout) ) {
-                    shouldContinue = false;
-                }
-            }
+        synchronized (_messageReceivedLock) {
+            try { _messageReceivedLock.wait(timeout); } catch (final InterruptedException exception) { }
         }
 
-        return null;
+        return ( (! _messages.isEmpty()) ? _messages.remove(0) : null );
     }
 
     /**
