@@ -5,7 +5,7 @@ import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
 
-public class SocketConnection {
+public class SocketConnection implements AutoCloseable {
     private static final Object _nextIdMutex = new Object();
     private static Long _nextId = 0L;
 
@@ -135,6 +135,7 @@ public class SocketConnection {
      * Ceases all reads, and closes the socket.
      *  Invoking any write functions after this call throws a runtime exception.
      */
+    @Override
     public void close() {
         _isClosed = true;
 
